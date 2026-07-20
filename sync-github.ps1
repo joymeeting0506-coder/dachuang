@@ -10,6 +10,8 @@ $ErrorActionPreference = "Stop"
 
 $gitCandidates = @(
     "git",
+    "D:\tools\Git\cmd\git.exe",
+    "D:\tools\Git\bin\git.exe",
     "E:\Git\cmd\git.exe",
     "E:\Git\bin\git.exe",
     "$env:ProgramFiles\Git\cmd\git.exe",
