@@ -107,11 +107,13 @@ silk_000001.jpg
 
 ## 七、标签字段
 
-推荐使用 CSV 作为主标签文件，字段如下：
+初版不建议把标签设计得过细，否则人工标注工作量会过大。项目早期优先使用最小字段集，满足 LoRA 训练、平台筛选和实验记录即可。
+
+最小字段集：
 
 ```csv
-image_id,file_path,category,style,theme,main_color,description,source,license,quality_score,split
-papercut_000001,data/processed/papercut/papercut_000001.jpg,papercut,folk,flower,red,"traditional Chinese papercut pattern, red paper, symmetrical flower motif",museum_open_resource,public,4,train
+image_id,file_path,category,theme,main_color,quality_score,description
+papercut_000001,data/processed/papercut/papercut_000001.jpg,papercut,flower,red,5,"a traditional Chinese papercut pattern, flower motif, red paper, symmetrical design"
 ```
 
 字段说明：
@@ -121,16 +123,63 @@ papercut_000001,data/processed/papercut/papercut_000001.jpg,papercut,folk,flower
 | `image_id` | 图片唯一编号 | `papercut_000001` |
 | `file_path` | 处理后图片路径 | `data/processed/papercut/papercut_000001.jpg` |
 | `category` | 大类别 | `papercut` |
-| `style` | 风格类型 | `folk` |
 | `theme` | 图案主题 | `flower` |
 | `main_color` | 主色调 | `red` |
-| `description` | 用于 LoRA 训练的英文描述 | `traditional Chinese papercut pattern...` |
-| `source` | 图片来源 | `museum_open_resource` |
-| `license` | 授权或版权说明 | `public` |
 | `quality_score` | 质量评分，1-5 | `4` |
-| `split` | 数据划分 | `train` |
+| `description` | 用于 LoRA 训练的英文描述 | `traditional Chinese papercut pattern...` |
+
+后续如果时间充足，再扩展完整字段：
+
+```csv
+image_id,file_path,category,style,theme,main_color,description,source,license,quality_score,split
+```
+
+其中 `source`、`license` 和 `split` 可以由数据整理脚本或后续数据管理流程补充，不要求第一轮人工逐项填写。
 
 ## 八、标签标注建议
+
+本项目不建议全部人工标注，推荐采用半自动标注方式：
+
+```text
+文件夹自动标大类
+  -> 脚本生成 image_id、file_path、category
+  -> 脚本按模板生成 description
+  -> 人工只校正 theme、main_color、quality_score
+  -> 低质量图片直接排除，不进入训练集
+```
+
+### 自动生成字段
+
+以下字段应由脚本自动生成：
+
+- `image_id`：根据类别和序号生成。
+- `file_path`：根据文件位置生成。
+- `category`：根据图片所在文件夹生成。
+- `description`：根据类别、主题、主色和模板生成。
+
+例如图片位于：
+
+```text
+data/processed/papercut/papercut_000001.jpg
+```
+
+脚本可自动得到：
+
+```text
+image_id = papercut_000001
+file_path = data/processed/papercut/papercut_000001.jpg
+category = papercut
+```
+
+### 人工校正字段
+
+人工主要关注以下字段：
+
+- `theme`：图案主题。
+- `main_color`：主色调。
+- `quality_score`：图片质量分。
+
+不建议一开始人工标太多字段。第一轮只要能支持训练和筛选即可。
 
 ### 类别标签
 
@@ -143,6 +192,8 @@ papercut_000001,data/processed/papercut/papercut_000001.jpg,papercut,folk,flower
 
 ### 风格标签
 
+风格标签第一阶段可以暂时不标，或者由 `category` 推断。等数据量扩大后再细分。
+
 可选风格：
 
 - `folk`：民间风格。
@@ -153,7 +204,7 @@ papercut_000001,data/processed/papercut/papercut_000001.jpg,papercut,folk,flower
 
 ### 主题标签
 
-可选主题：
+主题标签要控制数量，避免人工判断困难。初版建议只使用以下选项：
 
 - `flower`
 - `bird`
@@ -165,6 +216,7 @@ papercut_000001,data/processed/papercut/papercut_000001.jpg,papercut,folk,flower
 - `symmetry`
 - `border`
 - `geometric`
+- `other`
 
 如果一张图有多个主题，可以用英文逗号或竖线分隔，例如：
 
@@ -172,7 +224,51 @@ papercut_000001,data/processed/papercut/papercut_000001.jpg,papercut,folk,flower
 flower|symmetry|border
 ```
 
-## 九、LoRA 描述文本规范
+### 工作量控制建议
+
+第一阶段不需要标完整数据集，只建议精标高质量小样本：
+
+| 类别 | 建议精标数量 | 用途 |
+| --- | --- | --- |
+| 剪纸 | 50-100 张 | 优先跑通 LoRA |
+| 敦煌 | 50-100 张 | 第二个展示风格 |
+| 苗绣 | 30-80 张 | 后续扩展 |
+| 丝绸 | 30-80 张 | 后续扩展 |
+
+三人团队可以这样分工：
+
+- 数据成员先按文件夹整理类别。
+- 脚本自动生成初版 CSV。
+- 每人只校正 80-120 张图片。
+- 质量分低于 3 的图片不进入训练集。
+
+这样可以把人工标注控制在 1-2 天内完成第一版，而不是拖成长期任务。
+
+## 九、半自动标注流程
+
+推荐执行流程：
+
+```text
+1. 人工把图片拖入对应类别文件夹
+2. 运行脚本生成 metadata 初版
+3. 用 Excel 或表格工具打开 CSV
+4. 人工快速填写 theme、main_color、quality_score
+5. 删除或标记质量差的图片
+6. 再次运行脚本生成 LoRA 训练描述
+7. 输出最终训练用 metadata
+```
+
+标注时可以采用三档质量评分，减少判断成本：
+
+| 分数 | 含义 | 处理方式 |
+| --- | --- | --- |
+| 5 | 很好，风格典型，清晰完整 | 优先进入训练集 |
+| 3 | 一般可用，有轻微问题 | 视数据量决定是否使用 |
+| 1 | 质量差、重复、模糊或版权不明 | 不进入训练集 |
+
+如果后续需要更细，可以再把 3 档扩展为 1-5 分。
+
+## 十、LoRA 描述文本规范
 
 LoRA 训练需要稳定的图片描述。建议描述文本结构为：
 
@@ -195,8 +291,9 @@ a traditional Chinese silk pattern, court style, dragon and cloud motif, gold te
 - 不要写太长。
 - 不要混入不确定信息。
 - 尽量使用英文描述，方便扩散模型理解。
+- 第一版描述文本由脚本自动拼接，不要求每张图片人工手写。
 
-## 十、数据划分
+## 十一、数据划分
 
 建议比例：
 
@@ -208,7 +305,7 @@ a traditional Chinese silk pattern, court style, dragon and cloud motif, gold te
 
 如果某类图片太少，可以先不严格划分验证集和测试集，但要保留一小部分图片不参与训练，用于观察模型是否只是在记忆训练图。
 
-## 十一、质量评分标准
+## 十二、质量评分标准
 
 | 分数 | 标准 |
 | --- | --- |
@@ -220,7 +317,9 @@ a traditional Chinese silk pattern, court style, dragon and cloud motif, gold te
 
 训练 LoRA 时优先使用评分 4-5 的图片。
 
-## 十二、版权与来源记录
+初版人工标注时可以只使用 5、3、1 三档；等项目后期做实验报告时，再把重要样本细化为 1-5 分。
+
+## 十三、版权与来源记录
 
 每张图片都应记录来源，至少包括：
 
@@ -231,11 +330,12 @@ a traditional Chinese silk pattern, court style, dragon and cloud motif, gold te
 
 如果版权不清晰，该图片不建议用于公开展示和最终报告。
 
-## 十三、当前待补充内容
+## 十四、当前待补充内容
 
 - [ ] 建立 `data/metadata/images.csv`。
 - [ ] 确定第一批公开数据来源。
-- [ ] 完成剪纸类别标签样例。
-- [ ] 完成敦煌类别标签样例。
+- [ ] 编写半自动标注脚本，自动生成 `image_id`、`file_path`、`category` 和 `description`。
+- [ ] 完成剪纸类别 50-100 张高质量样本的人工校正。
+- [ ] 完成敦煌类别 50-100 张高质量样本的人工校正。
 - [ ] 编写图片清洗脚本。
 - [ ] 建立数据质量检查表。
