@@ -1,0 +1,341 @@
+﻿# 数据集规范
+
+## 一、数据集目标
+
+本数据集用于训练和评估非遗纹样生成模型，覆盖剪纸、敦煌壁画、苗绣、传统丝绸纹样等类别。数据集应尽量做到来源清晰、图片质量稳定、标签格式统一，方便后续进行 SDXL + LoRA 微调、StyleGAN2 训练和平台风格筛选。
+
+## 二、数据类别
+
+初版建议包含以下类别：
+
+| 类别中文名 | 英文目录名 | 说明 |
+| --- | --- | --- |
+| 剪纸纹样 | `papercut` | 红色剪纸、窗花、节庆图案、动植物纹样 |
+| 敦煌壁画纹样 | `dunhuang` | 莲花、飞天、藻井、云纹、边饰 |
+| 苗绣纹样 | `miaoxiu` | 几何纹、蝴蝶纹、鸟纹、花草纹 |
+| 传统丝绸纹样 | `silk` | 团花、缠枝、云纹、龙凤、植物纹 |
+
+如果数据不足，可以先完成 `papercut` 和 `dunhuang` 两类，后续再扩展。
+
+## 三、目录结构
+
+```text
+data/
+├── raw/                         # 原始图片
+│   ├── papercut/
+│   ├── dunhuang/
+│   ├── miaoxiu/
+│   └── silk/
+├── processed/                   # 清洗后图片
+│   ├── papercut/
+│   ├── dunhuang/
+│   ├── miaoxiu/
+│   └── silk/
+├── metadata/                    # 标签文件
+│   ├── images.csv
+│   ├── images.jsonl
+│   └── label_guide.md
+└── splits/                      # 数据集划分
+    ├── train.txt
+    ├── val.txt
+    └── test.txt
+```
+
+说明：
+
+- `raw/` 保存原始图片，不直接用于训练。
+- `processed/` 保存清洗、裁剪、统一尺寸后的图片。
+- `metadata/` 保存标签和数据来源。
+- `splits/` 保存训练、验证、测试划分。
+
+## 四、文件命名规则
+
+建议使用统一命名格式：
+
+```text
+类别_序号.扩展名
+```
+
+示例：
+
+```text
+papercut_000001.jpg
+dunhuang_000001.jpg
+miaoxiu_000001.jpg
+silk_000001.jpg
+```
+
+命名要求：
+
+- 使用小写英文和数字。
+- 不使用中文、空格和特殊符号。
+- 序号统一使用 6 位数字。
+- 原始图和处理后图片应能通过 `image_id` 对应。
+
+## 五、图片质量标准
+
+建议保留满足以下条件的图片：
+
+- 主体纹样清晰。
+- 分辨率不低于 512x512。
+- 无明显水印、二维码、边框文字。
+- 图案不严重变形。
+- 色彩和纹理具有代表性。
+- 适合作为模型学习风格的样本。
+
+建议删除以下图片：
+
+- 严重模糊或压缩痕迹明显。
+- 纹样主体太小。
+- 带有大面积文字说明。
+- 重复图片或高度相似图片。
+- 来源和版权完全不清晰。
+
+## 六、标准化处理
+
+所有进入 `processed/` 的图片建议统一处理：
+
+| 项目 | 推荐设置 |
+| --- | --- |
+| 图片尺寸 | 512x512，后续可扩展到 1024x1024 |
+| 图片格式 | JPG 或 PNG |
+| 色彩模式 | RGB |
+| 裁剪方式 | 居中裁剪或主体区域裁剪 |
+| 背景处理 | 尽量保留原始纹样背景，不强行抠图 |
+
+初学阶段可以先使用 512x512，训练速度更快，显存压力更小。
+
+## 七、标签字段
+
+初版不建议把标签设计得过细，否则人工标注工作量会过大。项目早期优先使用最小字段集，满足 LoRA 训练、平台筛选和实验记录即可。
+
+最小字段集：
+
+```csv
+image_id,file_path,category,theme,main_color,quality_score,description
+papercut_000001,data/processed/papercut/papercut_000001.jpg,papercut,flower,red,5,"a traditional Chinese papercut pattern, flower motif, red paper, symmetrical design"
+```
+
+字段说明：
+
+| 字段 | 说明 | 示例 |
+| --- | --- | --- |
+| `image_id` | 图片唯一编号 | `papercut_000001` |
+| `file_path` | 处理后图片路径 | `data/processed/papercut/papercut_000001.jpg` |
+| `category` | 大类别 | `papercut` |
+| `theme` | 图案主题 | `flower` |
+| `main_color` | 主色调 | `red` |
+| `quality_score` | 质量评分，1-5 | `4` |
+| `description` | 用于 LoRA 训练的英文描述 | `traditional Chinese papercut pattern...` |
+
+后续如果时间充足，再扩展完整字段：
+
+```csv
+image_id,file_path,category,style,theme,main_color,description,source,license,quality_score,split
+```
+
+其中 `source`、`license` 和 `split` 可以由数据整理脚本或后续数据管理流程补充，不要求第一轮人工逐项填写。
+
+## 八、标签标注建议
+
+本项目不建议全部人工标注，推荐采用半自动标注方式：
+
+```text
+文件夹自动标大类
+  -> 脚本生成 image_id、file_path、category
+  -> 脚本按模板生成 description
+  -> 人工只校正 theme、main_color、quality_score
+  -> 低质量图片直接排除，不进入训练集
+```
+
+### 自动生成字段
+
+以下字段应由脚本自动生成：
+
+- `image_id`：根据类别和序号生成。
+- `file_path`：根据文件位置生成。
+- `category`：根据图片所在文件夹生成。
+- `description`：根据类别、主题、主色和模板生成。
+
+例如图片位于：
+
+```text
+data/processed/papercut/papercut_000001.jpg
+```
+
+脚本可自动得到：
+
+```text
+image_id = papercut_000001
+file_path = data/processed/papercut/papercut_000001.jpg
+category = papercut
+```
+
+### 人工校正字段
+
+人工主要关注以下字段：
+
+- `theme`：图案主题。
+- `main_color`：主色调。
+- `quality_score`：图片质量分。
+
+不建议一开始人工标太多字段。第一轮只要能支持训练和筛选即可。
+
+### 类别标签
+
+类别标签尽量少而稳定，不要一开始分得太细。建议初版只使用：
+
+- `papercut`
+- `dunhuang`
+- `miaoxiu`
+- `silk`
+
+### 风格标签
+
+风格标签第一阶段可以暂时不标，或者由 `category` 推断。等数据量扩大后再细分。
+
+可选风格：
+
+- `folk`：民间风格。
+- `religious`：宗教壁画或佛教装饰风格。
+- `geometric`：几何纹样。
+- `textile`：织物纹理风格。
+- `court`：宫廷或传统丝绸装饰风格。
+
+### 主题标签
+
+主题标签要控制数量，避免人工判断困难。初版建议只使用以下选项：
+
+- `flower`
+- `bird`
+- `butterfly`
+- `cloud`
+- `lotus`
+- `dragon`
+- `phoenix`
+- `symmetry`
+- `border`
+- `geometric`
+- `other`
+
+如果一张图有多个主题，可以用英文逗号或竖线分隔，例如：
+
+```text
+flower|symmetry|border
+```
+
+### 工作量控制建议
+
+第一阶段不需要标完整数据集，只建议精标高质量小样本：
+
+| 类别 | 建议精标数量 | 用途 |
+| --- | --- | --- |
+| 剪纸 | 50-100 张 | 优先跑通 LoRA |
+| 敦煌 | 50-100 张 | 第二个展示风格 |
+| 苗绣 | 30-80 张 | 后续扩展 |
+| 丝绸 | 30-80 张 | 后续扩展 |
+
+三人团队可以这样分工：
+
+- 数据成员先按文件夹整理类别。
+- 脚本自动生成初版 CSV。
+- 每人只校正 80-120 张图片。
+- 质量分低于 3 的图片不进入训练集。
+
+这样可以把人工标注控制在 1-2 天内完成第一版，而不是拖成长期任务。
+
+## 九、半自动标注流程
+
+推荐执行流程：
+
+```text
+1. 人工把图片拖入对应类别文件夹
+2. 运行脚本生成 metadata 初版
+3. 用 Excel 或表格工具打开 CSV
+4. 人工快速填写 theme、main_color、quality_score
+5. 删除或标记质量差的图片
+6. 再次运行脚本生成 LoRA 训练描述
+7. 输出最终训练用 metadata
+```
+
+标注时可以采用三档质量评分，减少判断成本：
+
+| 分数 | 含义 | 处理方式 |
+| --- | --- | --- |
+| 5 | 很好，风格典型，清晰完整 | 优先进入训练集 |
+| 3 | 一般可用，有轻微问题 | 视数据量决定是否使用 |
+| 1 | 质量差、重复、模糊或版权不明 | 不进入训练集 |
+
+如果后续需要更细，可以再把 3 档扩展为 1-5 分。
+
+## 十、LoRA 描述文本规范
+
+LoRA 训练需要稳定的图片描述。建议描述文本结构为：
+
+```text
+a [category] pattern, [style] style, [theme] motif, [main color], traditional Chinese heritage design
+```
+
+示例：
+
+```text
+a traditional Chinese papercut pattern, folk style, flower motif, red paper, symmetrical design
+a Dunhuang mural decorative pattern, religious style, lotus and cloud motif, gold and blue-green colors
+a Miao embroidery pattern, textile style, geometric butterfly motif, colorful stitched texture
+a traditional Chinese silk pattern, court style, dragon and cloud motif, gold textile texture
+```
+
+注意：
+
+- 同一类别描述格式尽量统一。
+- 不要写太长。
+- 不要混入不确定信息。
+- 尽量使用英文描述，方便扩散模型理解。
+- 第一版描述文本由脚本自动拼接，不要求每张图片人工手写。
+
+## 十一、数据划分
+
+建议比例：
+
+| 数据集 | 比例 | 用途 |
+| --- | --- | --- |
+| 训练集 | 80% | 模型训练或微调 |
+| 验证集 | 10% | 调参和观察过拟合 |
+| 测试集 | 10% | 最终效果评估 |
+
+如果某类图片太少，可以先不严格划分验证集和测试集，但要保留一小部分图片不参与训练，用于观察模型是否只是在记忆训练图。
+
+## 十二、质量评分标准
+
+| 分数 | 标准 |
+| --- | --- |
+| 5 | 纹样清晰，风格典型，构图完整，非常适合训练 |
+| 4 | 质量较好，略有瑕疵，但适合训练 |
+| 3 | 可用，但存在轻微模糊、裁剪或背景问题 |
+| 2 | 质量较差，仅作为参考，不建议进入训练集 |
+| 1 | 不可用，应删除 |
+
+训练 LoRA 时优先使用评分 4-5 的图片。
+
+初版人工标注时可以只使用 5、3、1 三档；等项目后期做实验报告时，再把重要样本细化为 1-5 分。
+
+## 十三、版权与来源记录
+
+每张图片都应记录来源，至少包括：
+
+- 数据来源名称。
+- 原始链接或数据集名称。
+- 授权协议或版权说明。
+- 下载或整理日期。
+
+如果版权不清晰，该图片不建议用于公开展示和最终报告。
+
+## 十四、当前待补充内容
+
+- [ ] 建立 `data/metadata/images.csv`。
+- [ ] 确定第一批公开数据来源。
+- [ ] 编写半自动标注脚本，自动生成 `image_id`、`file_path`、`category` 和 `description`。
+- [ ] 完成剪纸类别 50-100 张高质量样本的人工校正。
+- [ ] 完成敦煌类别 50-100 张高质量样本的人工校正。
+- [ ] 编写图片清洗脚本。
+- [ ] 建立数据质量检查表。
