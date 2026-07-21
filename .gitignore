@@ -1,0 +1,106 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+.vscode/
+.idea/
+.agents/
+.codex/
+
+# Microsoft Office temporary files
+~$*.docx
+~$*.doc
+~$*.xlsx
+~$*.pptx
+
+# Local application documents with possible personal/contact information.
+# Move documents that should be published into docs/ and force-add them intentionally.
+*.doc
+*.docx
+*.xlsx
+*.pptx
+!docs/**/*.doc
+!docs/**/*.docx
+!docs/**/*.xlsx
+!docs/**/*.pptx
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Model checkpoints and generated training artifacts
+models/checkpoints/
+models/**/*.ckpt
+models/**/*.pt
+models/**/*.pth
+models/**/*.safetensors
+models/**/*.onnx
+models/outputs/
+experiments/
+runs/
+wandb/
+lightning_logs/
+
+# Dataset files: keep metadata/docs, do not commit bulky image datasets by default
+data/raw/
+data/processed/
+data/splits/
+!data/metadata/
+!data/metadata/.gitkeep
+
+# Generated image/export outputs
+backend/app/storage/generated/
+backend/app/storage/exports/
+outputs/
+exports/
+
+# Archives and large binary bundles
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+
+# Local logs
+*.log
+logs/
+
+# Backend specific - entire Chinese-named working directories
+非遗AI-前端/
+非遗AI-后端/
+
+# Backend specific
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+
+# Local backup scripts
+部署指南.sh
+sync-github.ps1
