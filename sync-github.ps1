@@ -36,6 +36,50 @@ function Invoke-Git {
     }
 }
 
+function Invoke-GitNetwork {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GitArgs)
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & $script:GitCommand @GitArgs
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+
+    if ($exitCode -ne 0) {
+        Write-Host "Git network command failed; retrying without configured HTTP proxy..."
+        & $script:GitCommand -c http.proxy= @GitArgs
+        $exitCode = $LASTEXITCODE
+    }
+
+    if ($exitCode -ne 0) {
+        throw "Git command failed: git $($GitArgs -join ' ')"
+    }
+}
+
+function Test-RemoteBranchExists {
+    param([string]$BranchName)
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & $script:GitCommand ls-remote --exit-code --heads origin $BranchName *> $null
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -ne 0 -and $exitCode -ne 2) {
+        & $script:GitCommand -c http.proxy= ls-remote --exit-code --heads origin $BranchName *> $null
+        $exitCode = $LASTEXITCODE
+    }
+
+    $ErrorActionPreference = $previousErrorActionPreference
+    if ($exitCode -eq 0) {
+        return $true
+    }
+    elseif ($exitCode -eq 2) {
+        return $false
+    }
+
+    throw "Unable to check remote branch '$BranchName'."
+}
+
 Set-Location $PSScriptRoot
 
 if (-not $script:GitCommand) {
@@ -109,14 +153,13 @@ else {
 }
 
 if (-not $SkipPull) {
-    & $script:GitCommand ls-remote --exit-code --heads origin $Branch *> $null
-    if ($LASTEXITCODE -eq 0) {
-        Invoke-Git pull --rebase origin $Branch
+    if (Test-RemoteBranchExists $Branch) {
+        Invoke-GitNetwork pull --rebase origin $Branch
     }
     else {
         Write-Host "Remote branch '$Branch' does not exist yet; skipping pull."
     }
 }
 
-Invoke-Git push -u origin $Branch
+Invoke-GitNetwork push -u origin $Branch
 Write-Host "Synced to $RemoteUrl on branch '$Branch'."
