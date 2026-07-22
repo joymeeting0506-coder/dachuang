@@ -32,11 +32,9 @@ app.add_middleware(
         "http://localhost:5174",
         "http://127.0.0.1:5174",
         "http://localhost:7860",
-        # Vercel production deploys
-        "https://feiyi-ai.vercel.app",
-        "https://feiyi-ai-*.vercel.app",
+        # Vercel production deploys — explicit regex handles wildcard
     ],
-    allow_origin_regex=r"https://.*\.trycloudflare\.com",  # Cloudflare Tunnel
+    allow_origin_regex=r"https://(feiyi-ai(-[a-zA-Z0-9-]+)?|.*-feiyi-ai)\.vercel\.app|https://.*\.trycloudflare\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

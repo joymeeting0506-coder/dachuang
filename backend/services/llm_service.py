@@ -5,21 +5,43 @@
 
 from __future__ import annotations
 
+import logging
+
 import json
 import os
 
 from openai import AsyncOpenAI
+import httpx
 
 from models.schemas import (
     GenerateRequest,
-    CategoryEnum,
-    SizePresetEnum,
 )
 
 # ── 可选配置（兼容 DeepSeek / OpenAI / 其他兼容接口）────────────
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-your-deepseek-api-key")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "15.0"))  # 秒
+
+logger = logging.getLogger(__name__)
+
+# ── 全局复用客户端（单例，避免每次请求重建连接）────────────────
+_client: AsyncOpenAI | None = None
+_client_lock = False  # 简单的初始化锁
+
+
+def _get_client() -> AsyncOpenAI:
+    """获取全局复用的 AsyncOpenAI 客户端实例（线程安全）。"""
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(
+            api_key=LLM_API_KEY,
+            base_url=LLM_BASE_URL,
+            timeout=httpx.Timeout(LLM_TIMEOUT, connect=5.0),
+            max_retries=1,
+        )
+        logger.info(f"AsyncOpenAI client created (model={LLM_MODEL}, timeout={LLM_TIMEOUT}s)")
+    return _client
 
 # ── System Prompt：把所有可选值告诉 LLM ────────────────────────
 SYSTEM_PROMPT = """你是一个非遗纹样设计助手。用户会用自然语言描述想要的纹样，你需要将它解析为结构化参数。
@@ -82,17 +104,27 @@ async def parse_natural_language(user_input: str) -> GenerateRequest:
 
     Returns:
         解析后的 GenerateRequest（可直接传给 enqueue_generation）
+
+    Raises:
+        RuntimeError: LLM API 调用失败或响应格式错误
     """
     client = _get_client()
 
-    response = await client.chat.completions.create(
-        model=LLM_MODEL,
-        temperature=0.3,  # 低温度 → 输出更稳定
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_input},
-        ],
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=LLM_MODEL,
+            temperature=0.3,  # 低温度 → 输出更稳定
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_input},
+            ],
+        )
+    except Exception as e:
+        logger.error(f"DeepSeek API call failed: {e}")
+        raise RuntimeError(
+            f"LLM API 调用失败（{LLM_TIMEOUT}s 超时或网络错误），"
+            f"请检查 LLM_API_KEY 是否正确配置。错误: {e}"
+        )
 
     raw = response.choices[0].message.content or "{}"
 

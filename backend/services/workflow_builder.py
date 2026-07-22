@@ -47,6 +47,14 @@ CATEGORY_KEYWORDS: dict[str, str] = {
     ),
 }
 
+# ── Category → LoRA file on disk (matches actual ComfyUI LoRA filenames) ──
+CATEGORY_LORA: dict[str, str] = {
+    "paper_cut": "feiyi.safetensors",
+    "dunhuang": "feiyi.safetensors",
+    "miao_embroidery": "feiyi.safetensors",
+    "silk": "feiyi.safetensors",
+}
+
 # ── Color scheme → English color descriptors ─────────────────────
 COLOR_DESCRIPTORS: dict[str, str] = {
     "classic-vermillion": (
@@ -91,34 +99,38 @@ DEFAULT_NEGATIVE = (
 
 
 def build_prompt(req: GenerateRequest) -> str:
-    """Compose the CLIP positive prompt from all user inputs."""
+    """Compose the CLIP positive prompt from all user inputs.
+
+    Priority: custom user prompt is the most important signal.
+    Category keywords and color scheme provide structural guidance.
+    Theme tags add semantic hints.
+    """
     parts: list[str] = []
 
-    # Quality / style anchor
-    parts.append(
-        "traditional Chinese intangible cultural heritage pattern, "
-        "seamless repeating pattern tile, exquisite craftsmanship, "
-        "museum quality, highly detailed ornament"
-    )
-
-    # Category-specific visual keywords
+    # ── 1. Anchoring: category keywords give the model a clear starting point ──
     cat = req.category.value if hasattr(req.category, "value") else req.category
     cat_kw = CATEGORY_KEYWORDS.get(cat, "")
     if cat_kw:
         parts.append(cat_kw)
 
-    # Color scheme
+    # ── 2. Color scheme ──
     color = COLOR_DESCRIPTORS.get(req.color_scheme_id, "")
     if color:
         parts.append(f"color palette: {color}")
 
-    # Theme tags (user-selected Chinese tags)
+    # ── 3. Theme tags (Chinese) → provide semantic intent ──
     if req.theme_tags:
         parts.append(", ".join(req.theme_tags))
 
-    # Custom user prompt (free text)
+    # ── 4. User's custom prompt — HIGHEST priority, placed last ──
     if req.prompt and req.prompt.strip():
         parts.append(req.prompt.strip())
+
+    # ── 5. Quality tail — reinforces "pattern/tile" intent ──
+    parts.append(
+        "seamless repeating pattern, exquisite craftsmanship, "
+        "highly detailed traditional ornament, museum quality"
+    )
 
     return ", ".join(parts)
 
@@ -155,6 +167,8 @@ def build_workflow(req: GenerateRequest, seed: int | None = None) -> dict:
 
     pos_prompt = build_prompt(req)
 
+    lora_file = CATEGORY_LORA.get(cat, "feiyi.safetensors")
+
     workflow = {
         str(NODE_CHECKPOINT): {
             "inputs": {
@@ -165,20 +179,20 @@ def build_workflow(req: GenerateRequest, seed: int | None = None) -> dict:
         str(NODE_CLIP_POS): {
             "inputs": {
                 "text": pos_prompt,
-                "clip": [str(NODE_LORA), 0],  # takes CLIP from LoRA output
+                "clip": [str(NODE_LORA), 1],  # LoRA output[1]=CLIP
             },
             "class_type": "CLIPTextEncode",
         },
         str(NODE_CLIP_NEG): {
             "inputs": {
                 "text": DEFAULT_NEGATIVE,
-                "clip": [str(NODE_LORA), 0],  # takes CLIP from LoRA output
+                "clip": [str(NODE_LORA), 1],  # LoRA output[1]=CLIP
             },
             "class_type": "CLIPTextEncode",
         },
         str(NODE_LORA): {
             "inputs": {
-                "lora_name": f"{cat}_style.safetensors",
+                "lora_name": lora_file,
                 "strength_model": lora_model_strength,
                 "strength_clip": lora_model_strength,
                 "model": [str(NODE_CHECKPOINT), 0],

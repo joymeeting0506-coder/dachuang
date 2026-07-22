@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
-from typing import Dict
+from typing import Dict, Optional
 
 from models.schemas import (
     GenerateRequest,
@@ -51,7 +51,7 @@ async def enqueue_generation(req: GenerateRequest) -> GenerateResponse:
     )
 
 
-async def get_task_status(task_id: str) -> TaskStatusResponse | None:
+async def get_task_status(task_id: str) -> Optional[TaskStatusResponse]:
     """Get the current status of a generation task."""
     task = tasks.get(task_id)
     if not task:

@@ -100,6 +100,7 @@ logs/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/.env
+.env
 
 # Local backup scripts
 部署指南.sh
