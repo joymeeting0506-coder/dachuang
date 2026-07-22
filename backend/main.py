@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from config import get_settings, Settings
 from models.schemas import HealthResponse
 from routes.generate import router as generate_router
+from routes.llm_generate import router as llm_router
 from services.comfyui_service import check_health as check_comfyui_health
 
 settings = get_settings()
@@ -50,6 +51,7 @@ app.mount(
 
 # Routes
 app.include_router(generate_router)
+app.include_router(llm_router)
 
 
 @app.get("/", response_model=HealthResponse)

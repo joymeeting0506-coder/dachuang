@@ -28,3 +28,22 @@ export interface ComfyUIHealth {
   note?: string;
   error?: string;
 }
+
+/** Natural language generation — parsed params come back from LLM. */
+export interface NaturalLanguageResponse {
+  task_id: string;
+  status: string;
+  estimated_time: number;
+  parsed_params: {
+    category: string;
+    style_strength: number;
+    prompt: string;
+    theme_tags: string[];
+    color_scheme_id: string;
+    size_preset: string;
+    custom_width: number | null;
+    custom_height: number | null;
+    count: number;
+    seed: number | null;
+  };
+}

@@ -9,7 +9,7 @@ import type {
 } from './types';
 import { DEFAULT_PARAMS, MAX_GENERATION_COUNT, MIN_GENERATION_COUNT } from './constants';
 import { createMockImages, getMockHistory } from './mockData';
-import { submitGeneration, pollTaskStatus } from '../api/generate';
+import { submitGeneration, pollTaskStatus, submitNaturalLanguage, fromSnakeCase } from '../api/generate';
 import type { GeneratedImageItem } from '../api/types';
 
 /** Simple sleep helper (ms). */
@@ -48,6 +48,7 @@ interface AppState {
   resetParams: () => void;
   setPhase: (phase: AppPhase) => void;
   generateImages: () => Promise<void>;
+  generateFromNaturalLanguage: (userPrompt: string) => Promise<void>;
   selectImage: (id: string | null) => void;
   toggleComparisonMode: () => void;
   toggleImageCheck: (id: string) => void;
@@ -180,6 +181,78 @@ export const useAppStore = create<AppState>((set, get) => ({
         phase: 'error',
         taskError:
           err instanceof Error ? err.message : '网络请求失败，请确认后端已启动',
+        taskProgress: 0,
+      });
+    }
+  },
+
+  /* --- Natural Language Generation (LLM → ComfyUI backend) --- */
+  generateFromNaturalLanguage: async (userPrompt: string) => {
+    set({
+      phase: 'generating',
+      generatedImages: [],
+      selectedImageId: null,
+      taskError: null,
+      taskProgress: 0,
+      taskEstimatedTime: 0,
+    });
+
+    try {
+      // 1. Submit natural language → backend calls LLM to parse → enqueue
+      const natResp = await submitNaturalLanguage(userPrompt, 2);
+
+      // 2. Backfill parsed params so the panel reflects what LLM understood
+      const parsedParams = fromSnakeCase(natResp.parsed_params);
+      set({ params: parsedParams, taskEstimatedTime: natResp.estimated_time });
+
+      // 3. Poll until done (reuse same logic as generateImages)
+      const task_id = natResp.task_id;
+      let task = await pollTaskStatus(task_id);
+      const pollInterval = 1500;
+      const maxPolls = 120;
+
+      for (let polls = 0; polls < maxPolls; polls++) {
+        if (task.status === 'done' || task.status === 'failed') break;
+        await sleep(pollInterval);
+        task = await pollTaskStatus(task_id);
+        set({
+          taskProgress: task.progress ?? 0,
+          taskEstimatedTime: task.estimated_time ?? 0,
+        });
+      }
+
+      // 4. Handle result
+      if (task.status === 'done' && task.images && task.images.length > 0) {
+        const images = task.images.map((img) => apiImageToStore(img, parsedParams));
+        const { history } = get();
+        const newHistory = [...images, ...history].slice(0, 50);
+        set({
+          phase: 'done',
+          generatedImages: images,
+          selectedImageId: images[0]?.id ?? null,
+          history: newHistory,
+          rightPanelTab: 'detail',
+          taskProgress: 100,
+          taskEstimatedTime: 0,
+        });
+      } else if (task.status === 'failed') {
+        set({
+          phase: 'error',
+          taskError: task.error || 'AI 生成失败，请重试',
+          taskProgress: 0,
+        });
+      } else {
+        set({
+          phase: 'error',
+          taskError: '生成超时，请检查 ComfyUI 是否正常运行',
+          taskProgress: 0,
+        });
+      }
+    } catch (err) {
+      set({
+        phase: 'error',
+        taskError:
+          err instanceof Error ? err.message : '请求失败，请确认后端已启动并配置了 LLM API Key',
         taskProgress: 0,
       });
     }

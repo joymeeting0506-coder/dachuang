@@ -55,3 +55,17 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "1.0.0"
     service: str = "非遗纹样 AI 生成平台 API"
+
+
+# ── 自然语言生成相关 ────────────────────────────────────────
+
+class NaturalLanguageRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=500, description="用户自然语言描述")
+    count: int = Field(default=2, ge=1, le=4, description="生成数量")
+
+
+class NaturalLanguageResponse(BaseModel):
+    task_id: str
+    status: str
+    estimated_time: int
+    parsed_params: GenerateRequest  # LLM 解析出的参数，前端可展示给用户

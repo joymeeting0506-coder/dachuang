@@ -1,3 +1,4 @@
+import NaturalLanguageInput from './NaturalLanguageInput';
 import CategoryDropdown from './CategoryDropdown';
 import StyleStrengthSlider from './StyleStrengthSlider';
 import ThemeTagsSelector from './ThemeTagsSelector';
@@ -14,6 +15,12 @@ export default function LeftPanel() {
         <h2 className="section-title mb-0 pb-0 border-b-0">生成参数</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-5 panel-scroll">
+        <NaturalLanguageInput />
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-px bg-[#E8DDD0]" />
+          <span className="text-[10px] text-gray-400">或手动选择参数</span>
+          <div className="flex-1 h-px bg-[#E8DDD0]" />
+        </div>
         <CategoryDropdown />
         <StyleStrengthSlider />
         <ThemeTagsSelector />
